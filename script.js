@@ -507,7 +507,9 @@ let userAnswers = [];
 let learnerName = "";
 let timer;
 let markedForReview = [];
+let timeExpired = false;
 
+// 🔀 Shuffle questions
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -515,38 +517,43 @@ function shuffle(array) {
   }
 }
 
+// 💾 Save quiz state
 function saveProgress() {
-  const progressData = {
+  const data = {
     current,
     score,
     userAnswers,
     questions,
     learnerName,
-    markedForReview
+    markedForReview,
+    timeExpired
   };
-  localStorage.setItem("quizProgress", JSON.stringify(progressData));
+  localStorage.setItem("quizProgress", JSON.stringify(data));
 }
 
+// 🔁 Load quiz state
 function loadProgress() {
   const saved = localStorage.getItem("quizProgress");
-  if (saved) {
-    const data = JSON.parse(saved);
-    current = data.current;
-    score = data.score;
-    userAnswers = data.userAnswers;
-    questions = data.questions;
-    learnerName = data.learnerName;
-    markedForReview = data.markedForReview || Array(questions.length).fill(false);
-    document.getElementById("welcome-screen").style.display = "none";
-    document.querySelector(".container").style.display = "block";
-    showQuestion();
-  }
+  if (!saved) return false;
+  const data = JSON.parse(saved);
+  current = data.current;
+  score = data.score;
+  userAnswers = data.userAnswers;
+  questions = data.questions;
+  learnerName = data.learnerName;
+  markedForReview = data.markedForReview;
+  timeExpired = data.timeExpired;
+  document.getElementById("welcome-screen").style.display = "none";
+  document.querySelector(".container").style.display = "block";
+  document.getElementById("progress").innerText = `👋 Welcome, ${learnerName}!`;
+  return true;
 }
 
+// 🚀 Start Quiz
 function startQuiz() {
   const nameInput = document.getElementById("learner-name").value.trim();
   if (!nameInput) {
-    alert("कृपया अपना नाम डालें।");
+    alert("कृपया अपना नाम दर्ज करें।");
     return;
   }
   learnerName = nameInput;
@@ -557,18 +564,22 @@ function startQuiz() {
   initQuiz();
 }
 
+// 🧠 Initialize Quiz
 function initQuiz() {
   shuffle(questions);
   markedForReview = Array(questions.length).fill(false);
+  timeExpired = false;
   showQuestion();
+  startTimer(1800); // ⏳ 30 मिनट
 }
 
+// ❓ Render Question + Options + Navigation
 function showQuestion() {
   const q = questions[current];
   document.getElementById("question").innerText = q.question;
+
   const opts = document.getElementById("options");
   opts.innerHTML = "";
-
   q.options.forEach((opt, i) => {
     const btn = document.createElement("button");
     btn.innerText = opt;
@@ -579,7 +590,8 @@ function showQuestion() {
     opts.appendChild(btn);
   });
 
-  document.getElementById("progress").innerText = `👋 Welcome, ${learnerName}! | प्रश्न ${current + 1} / ${questions.length}`;
+  document.getElementById("progress").innerText =
+    `👋 Welcome, ${learnerName}! | प्रश्न ${current + 1} / ${questions.length}`;
   document.getElementById("prev-btn").disabled = current === 0;
   document.getElementById("next-btn").disabled = current === questions.length - 1;
 
@@ -587,26 +599,25 @@ function showQuestion() {
   saveProgress();
 }
 
+// ✅ Handle Answer Selection
 function selectAnswer(selected) {
+  if (timeExpired) return;
   userAnswers[current] = selected;
-  const correctAnswer = questions[current].correct;
-  if (selected === correctAnswer) {
-    score += 2;
-  } else {
-    score -= 0.5;
-  }
+  const correct = questions[current].correct;
+  if (selected === correct) score += 2;
+  else score -= 0.5;
   showQuestion();
-  saveProgress();
 }
 
+// ⬅️➡️ Navigation
 function goToPrevious() {
-  if (current > 0) {
-    current--;
-    showQuestion();
-  }
+  if (timeExpired || current === 0) return;
+  current--;
+  showQuestion();
 }
 
 function goToNext() {
+  if (timeExpired) return;
   if (current < questions.length - 1) {
     current++;
     showQuestion();
@@ -616,29 +627,36 @@ function goToNext() {
   }
 }
 
+// 🔖 Mark/Unmark for Review
 function toggleReview() {
+  if (timeExpired) return;
   markedForReview[current] = !markedForReview[current];
   alert(markedForReview[current] ? "Marked for review!" : "Unmarked.");
-  saveProgress();
   renderNavigator();
+  saveProgress();
 }
 
+// 🧭 Question Navigator Panel
 function renderNavigator() {
   const panel = document.getElementById("navigator-panel");
   panel.innerHTML = "";
   questions.forEach((_, i) => {
     const btn = document.createElement("button");
     btn.innerText = i + 1;
+    if (markedForReview[i]) btn.classList.add("marked");
     btn.onclick = () => {
+      if (timeExpired) return;
       current = i;
       showQuestion();
     };
-    if (markedForReview[i]) btn.style.border = "2px solid orange";
     panel.appendChild(btn);
   });
 }
 
+// 🏁 Show Result & Analysis
 function showResult() {
+  clearInterval(timer);
+  timeExpired = true;
   document.getElementById("options").style.display = "none";
   document.getElementById("question").innerText = "Quiz समाप्त हुआ!";
   localStorage.removeItem("quizProgress");
@@ -646,9 +664,11 @@ function showResult() {
   const total = questions.length;
   const maxScore = total * 2;
   const percentage = Math.max(0, Math.round((score / maxScore) * 100));
-  document.getElementById("score").innerText = `आपके अंक: ${score} / ${maxScore} (${percentage}%)`;
+  document.getElementById("score").innerText =
+    `आपके अंक: ${score} / ${maxScore} (${percentage}%)`;
 
   showBadge(percentage);
+  updateLeaderboard();
   document.getElementById("retry").style.display = "inline-block";
 
   let tableHTML =
@@ -657,9 +677,112 @@ function showResult() {
     `<tr><th>#</th><th>प्रश्न</th><th>आपका उत्तर</th><th>सही उत्तर</th><th>स्थिति</th></tr>`;
 
   questions.forEach((q, i) => {
-    const userAnsIdx = userAnswers[i];
-    const correctIdx = q.correct;
-    const userAnsText = typeof userAnsIdx === "number" ? q.options[userAnsIdx] : "—";
-    const correctText = q.options[correctIdx];
-    const status = userAnsIdx === correctIdx ? "✅ सही" : "❌ गलत";
-   
+    const ua = userAnswers[i];
+    const ci = q.correct;
+    const ut = ua >= 0 ? q.options[ua] : "—";
+    const ct = q.options[ci];
+    const st = ua === ci ? "✅ सही" : "❌ गलत";
+    tableHTML +=
+      `<tr><td>${i + 1}</td><td>${q.question}</td><td>${ut}</td><td>${ct}</td><td>${st}</td></tr>`;
+  });
+
+  tableHTML += "</table>";
+  document.getElementById("summary").innerHTML = tableHTML;
+
+  const dl = document.createElement("button");
+  dl.innerText = "परिणाम डाउनलोड करें";
+  dl.onclick = downloadResult;
+  document.getElementById("summary").appendChild(dl);
+}
+
+// 🏅 Show Badge Based on Percentage
+function showBadge(percentage) {
+  let badge = "";
+  if (percentage >= 90) badge = "🥇 Bharat Ratna Learner";
+  else if (percentage >= 80) badge = "🏆 Sangrami Scholar";
+  else if (percentage >= 60) badge = "📘 Mahavidyalayi Learner";
+  else badge = "🛡️ Yoddha in Training";
+  document.getElementById("result").innerHTML =
+    `<p>आपका रैंक: <strong>${badge}</strong></p>`;
+}
+
+// 🔄 Reset Quiz
+function resetQuiz() {
+  current = 0;
+  score = 0;
+  userAnswers = [];
+  markedForReview = [];
+  timeExpired = false;
+  localStorage.removeItem("quizProgress");
+  document.getElementById("options").style.display = "block";
+  document.getElementById("result").innerHTML = "";
+  document.getElementById("score").innerHTML = "";
+  document.getElementById("summary").innerHTML = "";
+  document.getElementById("retry").style.display = "none";
+  initQuiz();
+}
+
+// ⏳ Timer with Auto-Submit
+function startTimer(seconds) {
+  if (timer) clearInterval(timer);
+  timer = setInterval(() => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    document.getElementById("timer").innerText =
+      `⏳ समय: ${m}:${s < 10 ? "0" : ""}${s}`;
+    seconds--;
+    if (seconds < 0) {
+      clearInterval(timer);
+      timeExpired = true;
+      alert("समय समाप्त! आपका टेस्ट ऑटो-सबमिट किया जा रहा है।");
+      showResult();
+    }
+  }, 1000);
+}
+
+// 📥 Download Result as Text File
+function downloadResult() {
+  let text = `📄 The Knowledge Stream - Quiz Result\n\n`;
+  text += `👤 Name: ${learnerName}\n`;
+  text += `📊 Score: ${score} / ${questions.length * 2} (${Math.max(0, Math.round((score / (questions.length * 2)) * 100))}%)\n\n`;
+  text += `🧾 Detailed Answers:\n\n`;
+
+  questions.forEach((q, i) => {
+    const ua = userAnswers[i];
+    const ci = q.correct;
+    const ut = ua >= 0 ? q.options[ua] : "—";
+    const ct = q.options[ci];
+    const st = ua === ci ? "✅ Correct" : "❌ Wrong";
+    text += `Q${i + 1}. ${q.question}\n`;
+    text += `Your Answer: ${ut}\nCorrect Answer: ${ct}\nStatus: ${st}\n\n`;
+  });
+
+  const blob = new Blob([text], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${learnerName}_quiz_result.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// 📈 Leaderboard (Top 5)
+function updateLeaderboard() {
+  let board = JSON.parse(localStorage.getItem("leaderboard") || "[]");
+  board.push({ name: learnerName, score });
+  board.sort((a, b) => b.score - a.score);
+  board = board.slice(0, 5);
+  localStorage.setItem("leaderboard", JSON.stringify(board));
+}
+
+// 🔔 On Load: Offer Resume
+window.onload = () => {
+  if (localStorage.getItem("quizProgress")) {
+    if (confirm("क्या आप पिछला Quiz फिर से शुरू करना चाहते हैं?")) {
+      const resumed = loadProgress();
+      if (resumed && !timeExpired) {
+        startTimer(1800);
+      }
+    }
+  }
+};
