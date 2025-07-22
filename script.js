@@ -356,7 +356,7 @@ const questions = [
     correct: 2
   }
 
-];
+]
 
 let current = 0;
 let score = 0;
@@ -470,14 +470,25 @@ function showQuestion() {
 // Select answer
 function selectAnswer(selected) {
   if (timeExpired) return;
-  if (userAnswers[current] !== null) return; // Prevent changing answers
+  // if (userAnswers[current] !== null) return; // ❌ इस लाइन को हटा दो
   userAnswers[current] = selected;
   const correct = questions[current].correct;
+  
+  // पहले से कोई answer था तो score reset करो
+  if (userAnswers[current] !== null) {
+    if (userAnswers[current] === correct) score -= 2;
+    else score += 0.5;
+  }
+
+  // अब नया answer का score दोबारा जोड़ो
   if (selected === correct) score += 2;
   else score -= 0.5;
+
   saveProgress();
   showQuestion();
 }
+
+
 
 // Navigation
 function goToPrevious() {
