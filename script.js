@@ -1,3 +1,4 @@
+
 const questions = [
   {
     question: "भारत पर मोहम्मद बिन कासिम का पहला सफल आक्रमण किस वर्ष हुआ था?",
@@ -365,6 +366,7 @@ let timer;
 let markedForReview = [];
 let timeExpired = false;
 let remainingTime = 0;
+const QUIZ_DURATION_MINUTES = 15; // 👈 Bas yahan se time set karo (e.g. 10, 20, 30)
 
 // Shuffle questions
 function shuffle(array) {
@@ -402,7 +404,7 @@ function loadProgress() {
   learnerName = data.learnerName;
   markedForReview = data.markedForReview;
   timeExpired = data.timeExpired;
-  remainingTime = data.remainingTime;
+remainingTime = data.remainingTime || QUIZ_DURATION_MINUTES * 60;
 
   document.getElementById("welcome-screen").style.display = "none";
   document.querySelector(".container").style.display = "block";
@@ -413,7 +415,6 @@ function loadProgress() {
   return true;
 }
 
-// Start quiz
 function startQuiz() {
   const nameInput = document.getElementById("learner-name").value.trim();
   if (!nameInput) {
@@ -423,7 +424,6 @@ function startQuiz() {
   learnerName = nameInput;
   localStorage.setItem("learnerName", learnerName);
 
-  // Only initialize new quiz if not resuming
   if (!localStorage.getItem("quizProgress")) {
     shuffle(questions);
     markedForReview = Array(questions.length).fill(false);
@@ -431,7 +431,7 @@ function startQuiz() {
     current = 0;
     score = 0;
     timeExpired = false;
-    remainingTime = 1800; // 30 minutes
+    remainingTime = QUIZ_DURATION_MINUTES * 60; // ✅ Manual timer control
   }
 
   document.getElementById("welcome-screen").style.display = "none";
@@ -470,6 +470,7 @@ function showQuestion() {
 // Select answer
 function selectAnswer(selected) {
   if (timeExpired) return;
+  if (userAnswers[current] !== null) return; // Prevent changing answers
   userAnswers[current] = selected;
   const correct = questions[current].correct;
   if (selected === correct) score += 2;

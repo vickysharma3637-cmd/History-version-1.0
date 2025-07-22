@@ -32,6 +32,7 @@
     
 <div id="welcome-screen">
   <div id="welcome-card">
+    
     <h2>👋 Welcome to The Knowledge Stream</h2>
     <h4>mock version 1.0</h4>
 
@@ -65,7 +66,7 @@
     <div id="timer" style="font-size: 20px; font-weight: bold;"></div>
 <script>
   // 👉 यहाँ मिनट में समय लिखो (जैसे 30 मिनट)
-  const timeInMinutes = 30;
+  const timeInMinutes = 32;
   let time = timeInMinutes * 60;  // मिनट को सेकंड में बदला
 
   const timerElement = document.getElementById("timer");
@@ -91,6 +92,7 @@
   <button id="prev-btn" onclick="goToPrevious()">⬅️ Previous</button>
   <button id="next-btn" onclick="goToNext()">Next ➡️</button>
 </div>
+<button onclick="showResult()">🔒 सबमिट करें</button>
 
     <footer>© The Knowledge Stream | Powered by Vicky Sharma</footer>
   </div>
