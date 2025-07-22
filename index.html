@@ -13,11 +13,31 @@
   
   <link href="style.css" rel="stylesheet">
 </head>
+<style>
+  .neon-text {
+    font-size: 2.2rem;
+    color: #fff;
+    text-shadow:
+      0 0 5px #0ff,
+      0 0 10px #0ff,
+      0 0 20px #0ff,
+      0 0 40px #0ff;
+    background-color: #fff9e8;
+    padding: 8px;
+    display: inline-block;
+    border-radius: 8px;
+  }
+</style>
 <body>
     
 <div id="welcome-screen">
   <div id="welcome-card">
     <h2>👋 Welcome to The Knowledge Stream</h2>
+    <h4>mock version 1.0</h4>
+
+    <!-- 🔥 Neon Glow effect yahan laga hai -->
+    <h2 class="neon-text">invasion of India and Delhi Sultanate</h2>
+
     <p>Enter your name to begin:</p>
     <input type="text" id="learner-name" placeholder="Your Name">
     <button onclick="startQuiz()">🚀 Start Quiz</button>
