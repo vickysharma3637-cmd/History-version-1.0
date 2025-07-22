@@ -508,8 +508,9 @@ let learnerName = "";
 let timer;
 let markedForReview = [];
 let timeExpired = false;
+let remainingTime = 0;
 
-// 🔀 Shuffle questions
+// Shuffle questions
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -517,7 +518,7 @@ function shuffle(array) {
   }
 }
 
-// 💾 Save quiz state
+// Save state
 function saveProgress() {
   const data = {
     current,
@@ -526,16 +527,18 @@ function saveProgress() {
     questions,
     learnerName,
     markedForReview,
-    timeExpired
+    timeExpired,
+    remainingTime
   };
   localStorage.setItem("quizProgress", JSON.stringify(data));
 }
 
-// 🔁 Load quiz state
+// Load state
 function loadProgress() {
   const saved = localStorage.getItem("quizProgress");
   if (!saved) return false;
   const data = JSON.parse(saved);
+
   current = data.current;
   score = data.score;
   userAnswers = data.userAnswers;
@@ -543,13 +546,18 @@ function loadProgress() {
   learnerName = data.learnerName;
   markedForReview = data.markedForReview;
   timeExpired = data.timeExpired;
+  remainingTime = data.remainingTime;
+
   document.getElementById("welcome-screen").style.display = "none";
   document.querySelector(".container").style.display = "block";
   document.getElementById("progress").innerText = `👋 Welcome, ${learnerName}!`;
+
+  showQuestion();
+  renderNavigator();
   return true;
 }
 
-// 🚀 Start Quiz
+// Start quiz
 function startQuiz() {
   const nameInput = document.getElementById("learner-name").value.trim();
   if (!nameInput) {
@@ -558,22 +566,28 @@ function startQuiz() {
   }
   learnerName = nameInput;
   localStorage.setItem("learnerName", learnerName);
+
+  // Only initialize new quiz if not resuming
+  if (!localStorage.getItem("quizProgress")) {
+    shuffle(questions);
+    markedForReview = Array(questions.length).fill(false);
+    userAnswers = Array(questions.length).fill(null);
+    current = 0;
+    score = 0;
+    timeExpired = false;
+    remainingTime = 1800; // 30 minutes
+  }
+
   document.getElementById("welcome-screen").style.display = "none";
   document.querySelector(".container").style.display = "block";
   document.getElementById("progress").innerText = `👋 Welcome, ${learnerName}!`;
-  initQuiz();
-}
 
-// 🧠 Initialize Quiz
-function initQuiz() {
-  shuffle(questions);
-  markedForReview = Array(questions.length).fill(false);
-  timeExpired = false;
   showQuestion();
-  startTimer(1800); // ⏳ 30 मिनट
+  startTimer(remainingTime);
+  saveProgress();
 }
 
-// ❓ Render Question + Options + Navigation
+// Show question
 function showQuestion() {
   const q = questions[current];
   document.getElementById("question").innerText = q.question;
@@ -584,9 +598,7 @@ function showQuestion() {
     const btn = document.createElement("button");
     btn.innerText = opt;
     btn.onclick = () => selectAnswer(i);
-    if (userAnswers[current] === i) {
-      btn.style.backgroundColor = "#d1e7dd";
-    }
+    if (userAnswers[current] === i) btn.style.backgroundColor = "#d1e7dd";
     opts.appendChild(btn);
   });
 
@@ -599,20 +611,22 @@ function showQuestion() {
   saveProgress();
 }
 
-// ✅ Handle Answer Selection
+// Select answer
 function selectAnswer(selected) {
   if (timeExpired) return;
   userAnswers[current] = selected;
   const correct = questions[current].correct;
   if (selected === correct) score += 2;
   else score -= 0.5;
+  saveProgress();
   showQuestion();
 }
 
-// ⬅️➡️ Navigation
+// Navigation
 function goToPrevious() {
   if (timeExpired || current === 0) return;
   current--;
+  saveProgress();
   showQuestion();
 }
 
@@ -620,6 +634,7 @@ function goToNext() {
   if (timeExpired) return;
   if (current < questions.length - 1) {
     current++;
+    saveProgress();
     showQuestion();
   } else {
     clearInterval(timer);
@@ -627,16 +642,15 @@ function goToNext() {
   }
 }
 
-// 🔖 Mark/Unmark for Review
+// Review mark
 function toggleReview() {
   if (timeExpired) return;
   markedForReview[current] = !markedForReview[current];
-  alert(markedForReview[current] ? "Marked for review!" : "Unmarked.");
-  renderNavigator();
   saveProgress();
+  renderNavigator();
 }
 
-// 🧭 Question Navigator Panel
+// Navigator
 function renderNavigator() {
   const panel = document.getElementById("navigator-panel");
   panel.innerHTML = "";
@@ -647,13 +661,14 @@ function renderNavigator() {
     btn.onclick = () => {
       if (timeExpired) return;
       current = i;
+      saveProgress();
       showQuestion();
     };
     panel.appendChild(btn);
   });
 }
 
-// 🏁 Show Result & Analysis
+// Show result
 function showResult() {
   clearInterval(timer);
   timeExpired = true;
@@ -663,31 +678,26 @@ function showResult() {
 
   const total = questions.length;
   const maxScore = total * 2;
-  const percentage = Math.max(0, Math.round((score / maxScore) * 100));
+  const pct = Math.max(0, Math.round((score / maxScore) * 100));
   document.getElementById("score").innerText =
-    `आपके अंक: ${score} / ${maxScore} (${percentage}%)`;
+    `आपके अंक: ${score} / ${maxScore} (${pct}%)`;
 
-  showBadge(percentage);
+  showBadge(pct);
   updateLeaderboard();
   document.getElementById("retry").style.display = "inline-block";
 
-  let tableHTML =
-    `<h3>🧾 उत्तर विश्लेषण</h3>` +
-    `<table border="1" style="margin:auto">` +
-    `<tr><th>#</th><th>प्रश्न</th><th>आपका उत्तर</th><th>सही उत्तर</th><th>स्थिति</th></tr>`;
-
+  let table = `<h3>🧾 उत्तर विश्लेषण</h3><table border="1" style="margin:auto">
+    <tr><th>#</th><th>प्रश्न</th><th>आपका उत्तर</th><th>सही उत्तर</th><th>स्थिति</th></tr>`;
   questions.forEach((q, i) => {
     const ua = userAnswers[i];
     const ci = q.correct;
-    const ut = ua >= 0 ? q.options[ua] : "—";
+    const ut = ua !== null ? q.options[ua] : "—";
     const ct = q.options[ci];
     const st = ua === ci ? "✅ सही" : "❌ गलत";
-    tableHTML +=
-      `<tr><td>${i + 1}</td><td>${q.question}</td><td>${ut}</td><td>${ct}</td><td>${st}</td></tr>`;
+    table += `<tr><td>${i + 1}</td><td>${q.question}</td><td>${ut}</td><td>${ct}</td><td>${st}</td></tr>`;
   });
-
-  tableHTML += "</table>";
-  document.getElementById("summary").innerHTML = tableHTML;
+  table += "</table>";
+  document.getElementById("summary").innerHTML = table;
 
   const dl = document.createElement("button");
   dl.innerText = "परिणाम डाउनलोड करें";
@@ -695,43 +705,35 @@ function showResult() {
   document.getElementById("summary").appendChild(dl);
 }
 
-// 🏅 Show Badge Based on Percentage
-function showBadge(percentage) {
+// Badge
+function showBadge(pct) {
   let badge = "";
-  if (percentage >= 90) badge = "🥇 Bharat Ratna Learner";
-  else if (percentage >= 80) badge = "🏆 Sangrami Scholar";
-  else if (percentage >= 60) badge = "📘 Mahavidyalayi Learner";
+  if (pct >= 90) badge = "🥇 Bharat Ratna Learner";
+  else if (pct >= 80) badge = "🏆 Sangrami Scholar";
+  else if (pct >= 60) badge = "📘 Mahavidyalayi Learner";
   else badge = "🛡️ Yoddha in Training";
   document.getElementById("result").innerHTML =
     `<p>आपका रैंक: <strong>${badge}</strong></p>`;
 }
 
-// 🔄 Reset Quiz
+// Reset
 function resetQuiz() {
-  current = 0;
-  score = 0;
-  userAnswers = [];
-  markedForReview = [];
-  timeExpired = false;
   localStorage.removeItem("quizProgress");
-  document.getElementById("options").style.display = "block";
-  document.getElementById("result").innerHTML = "";
-  document.getElementById("score").innerHTML = "";
-  document.getElementById("summary").innerHTML = "";
-  document.getElementById("retry").style.display = "none";
-  initQuiz();
+  location.reload();
 }
 
-// ⏳ Timer with Auto-Submit
-function startTimer(seconds) {
+// Timer
+function startTimer(sec) {
+  remainingTime = sec;
   if (timer) clearInterval(timer);
   timer = setInterval(() => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const m = Math.floor(remainingTime / 60);
+    const s = remainingTime % 60;
     document.getElementById("timer").innerText =
       `⏳ समय: ${m}:${s < 10 ? "0" : ""}${s}`;
-    seconds--;
-    if (seconds < 0) {
+    remainingTime--;
+    saveProgress();
+    if (remainingTime < 0) {
       clearInterval(timer);
       timeExpired = true;
       alert("समय समाप्त! आपका टेस्ट ऑटो-सबमिट किया जा रहा है।");
@@ -740,49 +742,37 @@ function startTimer(seconds) {
   }, 1000);
 }
 
-// 📥 Download Result as Text File
+// Download result
 function downloadResult() {
   let text = `📄 The Knowledge Stream - Quiz Result\n\n`;
   text += `👤 Name: ${learnerName}\n`;
   text += `📊 Score: ${score} / ${questions.length * 2} (${Math.max(0, Math.round((score / (questions.length * 2)) * 100))}%)\n\n`;
   text += `🧾 Detailed Answers:\n\n`;
-
   questions.forEach((q, i) => {
-    const ua = userAnswers[i];
-    const ci = q.correct;
-    const ut = ua >= 0 ? q.options[ua] : "—";
-    const ct = q.options[ci];
-    const st = ua === ci ? "✅ Correct" : "❌ Wrong";
-    text += `Q${i + 1}. ${q.question}\n`;
-    text += `Your Answer: ${ut}\nCorrect Answer: ${ct}\nStatus: ${st}\n\n`;
+    const ua = userAnswers[i], ci = q.correct;
+    const ut = ua !== null ? q.options[ua] : "—";
+    text += `Q${i + 1}. ${q.question}\nYour Answer: ${ut}\nCorrect Answer: ${q.options[ci]}\n\n`;
   });
-
   const blob = new Blob([text], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${learnerName}_quiz_result.txt`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${learnerName}_quiz_result.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
-// 📈 Leaderboard (Top 5)
+// Leaderboard
 function updateLeaderboard() {
-  let board = JSON.parse(localStorage.getItem("leaderboard") || "[]");
-  board.push({ name: learnerName, score });
-  board.sort((a, b) => b.score - a.score);
-  board = board.slice(0, 5);
-  localStorage.setItem("leaderboard", JSON.stringify(board));
+  let lb = JSON.parse(localStorage.getItem("leaderboard") || "[]");
+  lb.push({ name: learnerName, score });
+  lb.sort((a, b) => b.score - a.score);
+  lb = lb.slice(0, 5);
+  localStorage.setItem("leaderboard", JSON.stringify(lb));
 }
 
-// 🔔 On Load: Offer Resume
+// On page load
 window.onload = () => {
-  if (localStorage.getItem("quizProgress")) {
-    if (confirm("क्या आप पिछला Quiz फिर से शुरू करना चाहते हैं?")) {
-      const resumed = loadProgress();
-      if (resumed && !timeExpired) {
-        startTimer(1800);
-      }
-    }
+  const resumed = loadProgress();
+  if (resumed && !timeExpired) {
+    startTimer(remainingTime);
   }
 };
