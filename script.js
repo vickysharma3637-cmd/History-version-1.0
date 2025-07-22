@@ -501,14 +501,48 @@ const questions = [
   },
 ];
 
-// 2) ट्रैकिंग और स्टेट वेरिएबल्स
 let current = 0;
 let score = 0;
+let userAnswers = [];
 let learnerName = "";
 let timer;
-let userAnswers = [];
+let markedForReview = [];
 
-// 3) नाम एंट्री और क्विज़ स्टार्ट
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function saveProgress() {
+  const progressData = {
+    current,
+    score,
+    userAnswers,
+    questions,
+    learnerName,
+    markedForReview
+  };
+  localStorage.setItem("quizProgress", JSON.stringify(progressData));
+}
+
+function loadProgress() {
+  const saved = localStorage.getItem("quizProgress");
+  if (saved) {
+    const data = JSON.parse(saved);
+    current = data.current;
+    score = data.score;
+    userAnswers = data.userAnswers;
+    questions = data.questions;
+    learnerName = data.learnerName;
+    markedForReview = data.markedForReview || Array(questions.length).fill(false);
+    document.getElementById("welcome-screen").style.display = "none";
+    document.querySelector(".container").style.display = "block";
+    showQuestion();
+  }
+}
+
 function startQuiz() {
   const nameInput = document.getElementById("learner-name").value.trim();
   if (!nameInput) {
@@ -523,58 +557,98 @@ function startQuiz() {
   initQuiz();
 }
 
-// 4) क्विज़ इनिशियलाइज़
 function initQuiz() {
+  shuffle(questions);
+  markedForReview = Array(questions.length).fill(false);
   showQuestion();
-  // यदि आप टाइमर चाहते हैं तो इसे यहां शुरू करें
-  // startTimer(1800); // 30 मिनट का टाइमर
 }
 
-// 5) प्रश्न और ऑप्शन्स दिखाना
 function showQuestion() {
   const q = questions[current];
   document.getElementById("question").innerText = q.question;
   const opts = document.getElementById("options");
   opts.innerHTML = "";
+
   q.options.forEach((opt, i) => {
     const btn = document.createElement("button");
     btn.innerText = opt;
-    btn.onclick = () => checkAnswer(i);
+    btn.onclick = () => selectAnswer(i);
+    if (userAnswers[current] === i) {
+      btn.style.backgroundColor = "#d1e7dd";
+    }
     opts.appendChild(btn);
   });
+
   document.getElementById("progress").innerText = `👋 Welcome, ${learnerName}! | प्रश्न ${current + 1} / ${questions.length}`;
+  document.getElementById("prev-btn").disabled = current === 0;
+  document.getElementById("next-btn").disabled = current === questions.length - 1;
+
+  renderNavigator();
+  saveProgress();
 }
 
-// 6) उत्तर की जांच + मार्किंग (CGL पैटर्न)
-function checkAnswer(selected) {
-  userAnswers.push(selected);
+function selectAnswer(selected) {
+  userAnswers[current] = selected;
   const correctAnswer = questions[current].correct;
   if (selected === correctAnswer) {
     score += 2;
   } else {
     score -= 0.5;
   }
+  showQuestion();
+  saveProgress();
+}
 
-  current++;
-  if (current < questions.length) {
+function goToPrevious() {
+  if (current > 0) {
+    current--;
+    showQuestion();
+  }
+}
+
+function goToNext() {
+  if (current < questions.length - 1) {
+    current++;
     showQuestion();
   } else {
-    clearInterval(timer); // क्विज़ खत्म होने पर टाइमर रोक दें
+    clearInterval(timer);
     showResult();
   }
 }
 
-// 7) रिजल्ट + राइट/रॉन्ग एनालिसिस टेबल
+function toggleReview() {
+  markedForReview[current] = !markedForReview[current];
+  alert(markedForReview[current] ? "Marked for review!" : "Unmarked.");
+  saveProgress();
+  renderNavigator();
+}
+
+function renderNavigator() {
+  const panel = document.getElementById("navigator-panel");
+  panel.innerHTML = "";
+  questions.forEach((_, i) => {
+    const btn = document.createElement("button");
+    btn.innerText = i + 1;
+    btn.onclick = () => {
+      current = i;
+      showQuestion();
+    };
+    if (markedForReview[i]) btn.style.border = "2px solid orange";
+    panel.appendChild(btn);
+  });
+}
+
 function showResult() {
   document.getElementById("options").style.display = "none";
   document.getElementById("question").innerText = "Quiz समाप्त हुआ!";
+  localStorage.removeItem("quizProgress");
 
   const total = questions.length;
   const maxScore = total * 2;
   const percentage = Math.max(0, Math.round((score / maxScore) * 100));
   document.getElementById("score").innerText = `आपके अंक: ${score} / ${maxScore} (${percentage}%)`;
 
-  showBadge(percentage); // स्कोर को प्रतिशत में पास करें
+  showBadge(percentage);
   document.getElementById("retry").style.display = "inline-block";
 
   let tableHTML =
@@ -588,94 +662,4 @@ function showResult() {
     const userAnsText = typeof userAnsIdx === "number" ? q.options[userAnsIdx] : "—";
     const correctText = q.options[correctIdx];
     const status = userAnsIdx === correctIdx ? "✅ सही" : "❌ गलत";
-    tableHTML +=
-      `<tr>` +
-      `<td>${i + 1}</td>` +
-      `<td>${q.question}</td>` +
-      `<td>${userAnsText}</td>` +
-      `<td>${correctText}</td>` +
-      `<td>${status}</td>` +
-      `</tr>`;
-  });
-
-  tableHTML += "</table>";
-  document.getElementById("summary").innerHTML = tableHTML;
-
-  // परिणाम डाउनलोड करने का विकल्प
-  const downloadButton = document.createElement("button");
-  downloadButton.innerText = "परिणाम डाउनलोड करें";
-  downloadButton.onclick = downloadResult;
-  document.getElementById("summary").appendChild(downloadButton);
-}
-
-// 8) स्कोर बैज सिस्टम (प्रतिशत पर आधारित)
-function showBadge(percentage) {
-  let badge = "";
-  if (percentage >= 80) badge = "🏆 Sangrami Scholar";
-  else if (percentage >= 60) badge = "📘 Mahavidyalayi Learner";
-  else badge = "🛡️ Yoddha in Training";
-  document.getElementById("result").innerHTML = `<p>आपका रैंक: <strong>${badge}</strong></p>`;
-}
-
-// 9) रीसेट क्विज़
-function resetQuiz() {
-  current = 0;
-  score = 0;
-  userAnswers = [];
-  document.getElementById("options").style.display = "block";
-  document.getElementById("result").innerHTML = "";
-  document.getElementById("score").innerHTML = "";
-  document.getElementById("summary").innerHTML = "";
-  document.getElementById("retry").style.display = "none";
-  showQuestion();
-  // सुनिश्चित करें कि आप रीसेट पर टाइमर फिर से शुरू करें, यदि आवश्यक हो
-  // startTimer(1800);
-}
-
-// 10) टाइमर फ़ंक्शन
-function startTimer(seconds) {
-  // पहले से चल रहे टाइमर को साफ करें
-  if (timer) {
-    clearInterval(timer);
-  }
-  timer = setInterval(() => {
-    const min = Math.floor(seconds / 60);
-    const sec = seconds % 60;
-
-    document.getElementById("timer").innerText = `⏳ समय: ${min}:${sec < 10 ? "0" : ""}${sec}`;
-    seconds--;
-    if (seconds < 0) {
-      clearInterval(timer);
-      showResult();
-    }
-  }, 1000);
-}
-
-function downloadResult() {
-  let resultText = `📄 The Knowledge Stream - Quiz Result\n\n`;
-  resultText += `👤 Name: ${learnerName}\n`;
-  resultText += `📊 Score: ${score} / ${questions.length * 2} (${Math.max(0, Math.round((score / (questions.length * 2)) * 100))}%) \n\n`; // प्रतिशत भी जोड़ा
-  resultText += `🧾 Detailed Answers:\n\n`;
-
-  questions.forEach((q, i) => {
-    const userAnsIdx = userAnswers[i];
-    const correctIdx = q.correct;
-    const userAns = typeof userAnsIdx === "number" ? q.options[userAnsIdx] : "—";
-    const correctAns = q.options[correctIdx];
-    const status = userAnsIdx === correctIdx ? "✅ Correct" : "❌ Wrong";
-
-    resultText += `Q${i + 1}. ${q.question}\n`;
-    resultText += `Your Answer: ${userAns}\n`;
-    resultText += `Correct Answer: ${correctAns}\n`;
-    resultText += `Status: ${status}\n\n`;
-  });
-
-  // Create blob and download
-  const blob = new Blob([resultText], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${learnerName}_quiz_result.txt`;
-  document.body.appendChild(link); // लिंक को DOM में जोड़ें ताकि क्लिक किया जा सके
-  link.click();
-  document.body.removeChild(link); // डाउनलोड के बाद लिंक को हटा दें
-}
+   
